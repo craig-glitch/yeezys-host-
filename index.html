@@ -207,25 +207,6 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
 
-        .about h3 {
-            font-family: 'Orbitron', monospace;
-            font-size: 20px;
-            margin-bottom: 10px;
-        }
-
-        .main-chat {
-            flex: 1;
-            background: #f8f9ff;
-        }
-
-        .online-users {
-            padding: 15px 20px;
-            background: rgba(76, 175, 80, 0.1);
-            border-top: 1px solid rgba(76, 175, 80, 0.2);
-            font-size: 14px;
-            color: #2d5a2e;
-        }
-
         .music-player {
             background: rgba(255,255,255,0.2);
             padding: 20px;
@@ -243,6 +224,14 @@
         audio {
             width: 100%;
             outline: none;
+        }
+
+        .online-users {
+            padding: 15px 20px;
+            background: rgba(76, 175, 80, 0.1);
+            border-top: 1px solid rgba(76, 175, 80, 0.2);
+            font-size: 14px;
+            color: #2d5a2e;
         }
 
         @media (max-width: 768px) {
@@ -285,7 +274,7 @@
                 <div class="chat-container">
                     <div class="messages" id="privateMessages">
                         <div class="message">
-                            <div class="message-content">DMs go straight to Yeezy 🚀<br>if its about bussines coding startup..Share your Instagram @ to get a reply!</div>
+                            <div class="message-content">DMs go straight to Yeezy 🚀<br>Share your Instagram @ to get a reply!</div>
                         </div>
                     </div>
                     <div class="input-area">
@@ -314,7 +303,7 @@
                             Your browser doesn't support audio playback.
                         </audio>
                         <div style="text-align: center; font-size: 14px; opacity: 0.9; margin-top: 10px;">
-                            <strong>on one tonight😮‍💨</strong> 🔥
+                            <strong>"Push Up" - Sold Out Dates</strong> 🔥
                         </div>
                     </div>
                 </div>
@@ -346,7 +335,11 @@
         const privateMessages = document.getElementById('privateMessages');
         const onlineCount = document.getElementById('onlineCount');
 
-        let publicUserCount = 0;
+        // 🔥 FIXED: Online count PERSISTENT - only resets with reset tool
+        const publicChatRef = ref(db, 'public_chat');
+        const privateChatRef = ref(db, 'private_dms');
+        // Online count is now STORED in database - persists forever until reset
+        const publicOnlineRef = ref(db, 'public_online_count');
 
         // Tab switching + Auto-play music
         navTabs.forEach(tab => {
@@ -359,7 +352,6 @@
                 tab.classList.add('active');
                 document.getElementById(targetTab).classList.add('active');
                 
-                // Auto-play Gunna when About tab opens
                 if (targetTab === 'about') {
                     const audio = document.querySelector('audio');
                     if (audio && audio.paused) {
@@ -377,15 +369,14 @@
             });
         });
 
-        // Public Chat
-        const publicChatRef = ref(db, 'public_chat');
-        const publicOnlineRef = ref(db, 'public_online');
-
+        // 🔥 PUBLIC CHAT - PERSISTS FOREVER (only cleared by reset tool)
         onValue(publicChatRef, (snapshot) => {
             publicMessages.innerHTML = '';
             const messages = snapshot.val();
             if (messages) {
-                Object.values(messages).forEach(msg => {
+                // Show last 50 messages only (performance)
+                const recentMessages = Object.values(messages).slice(-50);
+                recentMessages.forEach(msg => {
                     const messageDiv = document.createElement('div');
                     messageDiv.className = `message ${msg.username === 'Yeezy' ? 'own' : ''}`;
                     messageDiv.innerHTML = `
@@ -400,9 +391,10 @@
             publicMessages.scrollTop = publicMessages.scrollHeight;
         });
 
+        // 🔥 ONLINE COUNT - STORED IN DATABASE (persists until reset)
         onValue(publicOnlineRef, (snapshot) => {
-            publicUserCount = snapshot.val() || 0;
-            onlineCount.textContent = `${publicUserCount} online`;
+            const count = snapshot.val() || 0;
+            onlineCount.textContent = `${count} online`;
         });
 
         document.getElementById('sendPublic').addEventListener('click', sendPublicMessage);
@@ -422,18 +414,23 @@
                     username,
                     text: message,
                     timestamp: serverTimestamp()
+                }).then(() => {
+                    // Increment online count (stored in DB)
+                    get(publicOnlineRef).then(snapshot => {
+                        const currentCount = snapshot.val() || 0;
+                        set(publicOnlineRef, currentCount + 1);
+                    });
                 });
+                
                 document.getElementById('publicMessage').value = '';
             }
         }
 
-        // Private DMs to Yeezy
-        const privateChatRef = ref(db, 'private_dms');
-
+        // 🔥 PRIVATE DMS - PERSISTS FOREVER (only cleared by reset tool)
         onValue(privateChatRef, (snapshot) => {
             privateMessages.innerHTML = `
                 <div class="message">
-                    <div class="message-content">DMs go straight to Yeezy 🚀<br>if its about bussines coding startup..Share your Instagram @ to get a reply!</div>
+                    <div class="message-content">DMs go straight to Yeezy 🚀<br>Share your Instagram @ to get a reply!</div>
                 </div>
             `;
             const dms = snapshot.val();
@@ -472,11 +469,6 @@
                 document.getElementById('instagramHandle').value = '';
             }
         }
-
-        // Update online count every 30s
-        setInterval(() => {
-            push(publicOnlineRef, serverTimestamp());
-        }, 30000);
     </script>
 </body>
 </html>
